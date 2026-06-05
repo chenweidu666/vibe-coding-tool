@@ -1,157 +1,144 @@
 # Vibe Coding Tool
 
-一个软硬结合的 **语音 + 键盘 超级输入法** 项目。通过语音识别将语音实时转为文字/代码输入，与物理键盘并行工作，跨平台使用。
+一个软硬结合的 **蓝牙键盘 + 蓝牙麦克风 + 语音识别** 项目。
 
 ## 核心体验
 
 ```
-说话 → 自动转文字 → 模拟键盘输出 → 任意编辑器/应用
-                                    ↑
-                              物理键盘照常可用
+┌─────────────────────────┐
+│  自定义蓝牙键盘（带麦克风） │
+│                         │
+│  物理按键 → BT HID →    │
+│  内置麦克风 → BT 音频 →  │
+└──────────┬──────────────┘
+           │  蓝牙连接
+           ▼
+      ┌─────────┐
+      │   PC    │
+      │         │
+      │ 按键输入  │──→ 正常打字
+      │ 音频流   │──→ STT 识别 ──→ 文字输出
+      └─────────┘
 ```
 
-- **语音输入**：说话即输入，解放双手
-- **键盘直通**：物理键盘正常使用，两者不冲突
-- **模式切换**：快捷键在「语音模式」「纯键盘模式」间切换
-- **命令映射**：特定语音短语映射为快捷键组合（如 "运行" → 保存并执行）
-- **跨平台**：目标支持 Linux / macOS / Windows
+- **实体蓝牙键盘**：正常打字，蓝牙连接电脑
+- **内置麦克风**：键盘上集成麦克风，通过蓝牙传输音频到 PC
+- **语音识别软件**：PC 端接收音频流，实时 STT 转为文字输出
+- 说话和打字可以同时进行，互不干扰
 
 ---
 
-## 整体架构
+## 架构
 
-### Phase 1 — 纯软件原型
+### 硬件：蓝牙键盘 + 麦克风
 
-```
-[麦克风] → VAD 语音检测 → STT 语音识别 → OS 输入模拟 → 目标应用
-                                             ↑
-                                        [物理键盘]
-```
+| 模块 | 选型 |
+|------|------|
+| 主控芯片 | ESP32-S3（BLE + 蓝牙音频 + I2S 麦克风）或 nRF52840（低功耗蓝牙） |
+| 键盘矩阵 | 机械轴 + 二极管矩阵，GPIO 扫描 |
+| 麦克风 | I2S MEMS 数字麦克风（INMP441） |
+| 蓝牙 | BLE HID（键盘）+ A2DP / BLE Audio（音频流） |
+| 电源 | 锂电池 + 充电管理（TP4056） |
+| 外壳 | 3D 打印 / CNC |
 
-| 模块 | 技术选型 |
-|------|---------|
-| 音频采集 | PyAudio / sounddevice |
-| 语音活动检测 (VAD) | Silero VAD |
-| 语音识别 (STT) | openai-whisper / faster-whisper |
-| 键盘模拟 | Linux: uinput / Mac: CGEvent / Win: SendInput |
-| 热词唤醒 | 按键触发（长按/快捷键） |
-
-### Phase 2 — 硬件设备
-
-```
-┌─────────────────────────────────────┐
-│ 自定义硬件设备 (USB Dongle)          │
-│                                     │
-│  ┌──────────┐   ┌───────────────┐   │
-│  │ MEMS 麦   │ → │ ESP32-S3      │   │
-│  │ 克风阵列  │   │               │   │
-│  └──────────┘   │ VAD + STT     │   │
-│                 │ (本地/流式)    │   │
-│  ┌──────────┐   │               │   │
-│  │ LED 指示  │ ← │ USB HID 输出  │───┼──→ PC (识别为标准键盘)
-│  │ 灯/按键   │   │               │   │
-│  └──────────┘   └───────────────┘   │
-└─────────────────────────────────────┘
-```
+### 软件：PC 端语音识别
 
 | 模块 | 技术选型 |
 |------|---------|
-| 主控 | ESP32-S3 (USB OTG + WiFi/BLE) |
-| 麦克风 | I2S MEMS 数字麦克风 (INMP441 / SPH0645) |
-| 语音识别(本地) | whisper.cpp tiny 模型 |
-| 语音识别(流式) | 音频流式传 PC，PC 侧推理 |
-| USB 接口 | USB HID Keyboard 设备，无需驱动 |
-| 供电 | USB 总线供电，< 500mA |
+| 音频接收 | 系统蓝牙音频输入设备 |
+| 语音活动检测 (VAD) | Silero VAD / 能量阈值 |
+| 语音识别 (STT) | faster-whisper / whisper.cpp |
+| 文字输出 | 模拟键盘输入（xdotool / uinput） |
+| 自定义词典 | YAML 配置，术语替换 |
 
-### 电路板设计
+---
 
-硬件 PCB 设计使用 **[KiCad](https://www.kicad.org/)** (开源 EDA 工具)，需安装：
+## 开发计划
 
-```bash
-# Ubuntu/Debian
-sudo apt install kicad
-
-# macOS
-brew install --cask kicad
-
-# Windows
-# 从 kicad.org 下载安装包
+### Phase 1 — 软件原型（先验证可行性）
+先用现有蓝牙耳机/麦克风 + PC 端软件跑通：
 ```
+蓝牙麦克风 → PC → VAD → faster-whisper → 键盘输出
+```
+- [ ] 音频采集（sounddevice / pyaudio）
+- [ ] VAD 语音检测
+- [ ] faster-whisper STT
+- [ ] 键盘输出模拟
+- [ ] 快捷键触发（按一个键开始/停止录音）
 
-主要电路模块：
-- ESP32-S3 最小系统（晶振、Flash、USB-C 接口）
-- I2S MEMS 麦克风电路
-- 3.3V LDO 稳压
-- USB HID 接口（直接使用 ESP32-S3 内置 USB）
-- 状态 LED + 功能按键
-- 可选：功率放大 + 扬声器（语音反馈）
+### Phase 2 — 硬件设计
+
+#### 2a. 电路原理图 + PCB（KiCad）
+- [ ] 主控 + 天线匹配电路
+- [ ] 键盘矩阵电路（如 6×15 = 90 键）
+- [ ] I2S 麦克风电路
+- [ ] 锂电池充电 + 电源管理
+- [ ] PCB Layout + 打样
+
+#### 2b. 固件（ESP-IDF / Arduino）
+- [ ] BLE HID 键盘
+- [ ] I2S 麦克风驱动
+- [ ] 蓝牙音频传输到 PC
+- [ ] 按键扫描 + 去抖
+
+#### 2c. 外壳
+- [ ] 3D 建模
+- [ ] 3D 打印 / CNC
+
+### Phase 3 — 打磨优化
+- [ ] 实时流式识别（低延迟）
+- [ ] 自定义词典
+- [ ] 跨平台（Linux / macOS / Windows）
 
 ---
 
 ## 开发环境
 
-### Python 环境 (Phase 1)
-
+### 电路设计
 ```bash
-# 系统依赖
-sudo apt install portaudio19-dev ffmpeg    # Linux
-brew install portaudio ffmpeg               # macOS
-
-# Python 依赖
-pip install pyaudio sounddevice pynput openai-whisper numpy
+# 已安装
+sudo apt install kicad   # 原理图 + PCB
 ```
 
-### ESP32 开发环境 (Phase 2)
-
+### PC 端软件
 ```bash
-# ESP-IDF 框架
+# 已安装
+pip install vosk                    # 轻量 STT（备选）
+sudo apt install xdotool            # 键盘模拟
+
+# 待安装
+pip install faster-whisper          # 高质量 STT（推荐）
+pip install sounddevice pynput      # 音频采集 + 键盘控制
+```
+
+### 固件开发
+```bash
+# ESP-IDF
 git clone --recursive https://github.com/espressif/esp-idf.git
 cd esp-idf && ./install.sh esp32s3
-
-# 或 Arduino 框架
-# Arduino IDE + ESP32 板支持包
 ```
 
 ---
 
-## 项目结构 (规划)
+## 项目结构
 
 ```
 vibe-coding-tool/
 ├── README.md
-├── software/                  # Phase 1: 纯软件原型
-│   ├── main.py               # 主入口
-│   ├── audio_capture.py      # 音频采集 (PyAudio)
-│   ├── vad.py                # 语音活动检测
-│   ├── stt.py                # 语音识别
-│   ├── keyboard_output.py    # 键盘输入模拟
-│   └── config.py             # 配置
-├── firmware/                  # Phase 2: ESP32 固件
+├── software/              # PC 端语音识别软件
+│   ├── main.py
+│   ├── audio_capture.py
+│   ├── vad.py
+│   ├── stt.py
+│   └── keyboard_output.py
+├── firmware/              # 键盘固件（ESP32）
 │   ├── main/
-│   ├── components/
-│   │   ├── audio/
-│   │   ├── hid/
-│   │   └── wifi_transport/
-│   └── CMakeLists.txt
-├── hardware/                  # Phase 2: 电路设计
-│   ├── schematic/            # KiCad 原理图
-│   ├── pcb/                  # KiCad PCB 布局
-│   ├── bom/                  # 物料清单
-│   └── enclosure/            # 外壳设计 (FreeCAD/OpenSCAD)
-└── docs/
-    └── architecture.md
+│   └── components/
+├── hardware/              # KiCad 电路设计
+│   ├── schematic/
+│   └── pcb/
+└── enclosure/             # 外壳 3D 模型
 ```
-
----
-
-## 开发路线图
-
-- [ ] **Phase 1** — Python 纯软件原型（音频采集 → VAD → STT → 键盘输出）
-- [ ] **Phase 2a** — KiCad 电路原理图 + PCB 设计
-- [ ] **Phase 2b** — ESP32-S3 固件 (USB HID + 音频采集 + STT)
-- [ ] **Phase 2c** — PCB 打样 + 焊接调试
-- [ ] **Phase 3** — 流式识别优化 + 低延迟打磨
-- [ ] **Phase 4** — macOS / Windows 适配
 
 ---
 
