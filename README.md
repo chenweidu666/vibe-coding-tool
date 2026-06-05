@@ -142,6 +142,19 @@ vibe-coding-tool/
 
 ---
 
+## AI 电路设计工具（参考）
+
+| 工具 | 特点 | 链接 |
+|------|------|------|
+| Flux | AI Copilot 辅助原理图 + PCB 设计，浏览器端 | [flux.ai](https://flux.ai) |
+| JITX | 用代码定义电路，AI 自动优化布线 | [jitx.com](https://jitx.com) |
+| Duino | AI 辅助 Arduino/ESP32 电路设计 | [duino.app](https://duino.app) |
+| KiCad + LLM | 社区实验项目，用 LLM 辅助 KiCad 操作 | GitHub 搜索 kicad-mcp 等 |
+
+> 目前 AI PCB 设计尚在早期，可先用 KiCad 手工绘制，后续关注 AI 工具成熟度。
+
+---
+
 ## 许可证
 
 MIT
